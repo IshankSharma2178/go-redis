@@ -1,26 +1,40 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"strconv"
+	"strings"
 
-	"github.com/IshankSharma2178/redis-internals/TCP-Echo-Server/internals/config"
+	"github.com/IshankSharma2178/go-redis/core"
+	"github.com/IshankSharma2178/go-redis/internals/config"
 )
 
-func readCommand(c net.Conn) (string, error) {
+func readCommand(c io.ReadWriter) (*core.RedisCmd, error) {
 	buf := make([]byte, 512)
 	n, err := c.Read(buf[:])
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(buf[:n]), nil
+
+	tokens, err := core.DecodeArrayString(buf[:n])
+	if err != nil {
+		return nil, err
+	}
+	return &core.RedisCmd{Cmd: strings.ToUpper(tokens[0]), Args: tokens[1:]}, nil
 }
 
-func respond(cmd string, c net.Conn) error {
-	_, err := c.Write([]byte(cmd))
-	return err
+func respondError(err error, c io.ReadWriter) {
+	c.Write([]byte(fmt.Sprintf("-%s\r\n", err))) // adding '-' becoz error need to be transformed into resp before sending
+}
+
+func respond(cmd *core.RedisCmd, c io.ReadWriter) {
+	err := core.EvalAndRespond(cmd, c)
+	if err != nil {
+		respondError(err, c)
+	}
 }
 
 func RunSyncTCPServer() {
@@ -30,12 +44,14 @@ func RunSyncTCPServer() {
 
 	lsnr, err := net.Listen("tcp", config.Cfg.Host+":"+strconv.Itoa(config.Cfg.Port))
 	if err != nil {
-		panic(err)
+		log.Println("err", err)
+		return
 	}
 	for {
 		c, err := lsnr.Accept() // blocking call : waiting for the new client to connect
 		if err != nil {
-			panic(err)
+			log.Println("err", err)
+			return
 		}
 
 		con_clients += 1
@@ -53,10 +69,7 @@ func RunSyncTCPServer() {
 				log.Println("err", err)
 			}
 			log.Println("command", cmd)
-			if err = respond(cmd, c); err != nil {
-				log.Print("err write: ", err)
-			}
+			respond(cmd, c)
 		}
-
 	}
 }
