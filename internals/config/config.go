@@ -3,13 +3,17 @@ package config
 import "flag"
 
 type Config struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host             string `yaml:"host"`
+	Port             int    `yaml:"port"`
+	KeysLimit        int    `yaml:"keys_limit"`
+	EvictionStrategy string `yaml:"eviction_strategy"`
 }
 
 var Cfg = Config{
-	Host: "0.0.0.0",
-	Port: 7379,
+	Host:             "0.0.0.0",
+	Port:             7379,
+	KeysLimit:        5,
+	EvictionStrategy: "simple-first",
 }
 
 func SetupFlags() {
