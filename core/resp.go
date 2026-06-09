@@ -140,11 +140,16 @@ func DecodeArrayString(data []byte) ([]string, error) {
 	return tokens, nil
 }
 
-func Encode(value interface{}, isDefaultArg bool) []byte {
-	if isDefaultArg == true {
-		return []byte("+PONG\r\n")
-	} else {
-		str := value.(string)
-		return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(str), str))
+func Encode(value interface{}, isSimple bool) []byte {
+	switch v := value.(type) {
+	case string:
+		if isSimple {
+			return []byte(fmt.Sprintf("+%s\r\n", v))
+		}
+		return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v))
+	case int64:
+		return []byte(fmt.Sprintf(":%d\r\n", v))
+	default:
+		return RESP_NIL
 	}
 }
