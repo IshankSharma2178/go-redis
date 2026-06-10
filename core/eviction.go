@@ -6,8 +6,20 @@ import "github.com/IshankSharma2178/go-redis/internals/config"
 // TODO: Make it efficient by doing thorough sampling
 func evictFirst() {
 	for k := range store {
-		delete(store, k)
+		Del(k)
 		return
+	}
+}
+func evictAllkeysRandom() {
+	evictCount := int64(config.Cfg.EvictionRatio * float64(config.Cfg.KeysLimit))
+	// Iteration of Golang dictionary can be considered sas a random
+	// because it depends on the hash of the inserted key
+	for k := range store {
+		Del(k)
+		evictCount--
+		if evictCount <= 0 {
+			break
+		}
 	}
 }
 
@@ -17,5 +29,7 @@ func evict() {
 	switch config.Cfg.EvictionStrategy {
 	case "simple-first":
 		evictFirst()
+	case "allkeys-random":
+		evictAllkeysRandom()
 	}
 }
