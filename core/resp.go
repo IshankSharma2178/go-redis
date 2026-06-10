@@ -121,8 +121,17 @@ func Decode(data []byte) (interface{}, error) {
 	if len(data) == 0 {
 		return nil, errors.New("no data")
 	}
-	value, _, err := DecodeOne(data)
-	return value, err
+	var values []interface{} = make([]interface{}, 0)
+	var index int = 0
+	for index < len(data) {
+		value, delta, err := DecodeOne(data[index:])
+		if err != nil {
+			return value, err
+		}
+		index = index + delta
+		values = append(values, value)
+	}
+	return values, nil
 }
 
 func DecodeArrayString(data []byte) ([]string, error) {
