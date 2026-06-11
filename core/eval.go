@@ -20,7 +20,7 @@ func evalPING(args []string) []byte {
 	var b []byte
 
 	if len(args) >= 2 {
-		return Encode(errors.New("ERR wrong number of arguments for 'ping' command"), true)
+		return Encode(errors.New("ERR wrong number of arguments for 'ping' command"), false)
 	}
 
 	if len(args) == 0 {
@@ -34,7 +34,7 @@ func evalPING(args []string) []byte {
 
 func evalSET(args []string) []byte {
 	if len(args) <= 1 {
-		return Encode(errors.New("ERR wrong number of arguments for 'set' command"), true)
+		return Encode(errors.New("ERR wrong number of arguments for 'set' command"), false)
 	}
 
 	var key, value string
@@ -48,16 +48,16 @@ func evalSET(args []string) []byte {
 		case "EX", "ex":
 			i++
 			if i == len(args) {
-				return Encode(errors.New("ERR syntax error"), true)
+				return Encode(errors.New("ERR syntax error"), false)
 			}
 
 			exDurationSec, err := strconv.ParseInt(args[3], 10, 64)
 			if err != nil {
-				return Encode(errors.New("ERR value is not an integer or out of range"), true)
+				return Encode(errors.New("ERR value is not an integer or out of range"), false)
 			}
 			exDurationMs = exDurationSec * 1000
 		default:
-			return Encode(errors.New("ERR syntax error"), true)
+			return Encode(errors.New("ERR syntax error"), false)
 		}
 	}
 
@@ -68,7 +68,7 @@ func evalSET(args []string) []byte {
 
 func evalGET(args []string) []byte {
 	if len(args) != 1 {
-		return Encode(errors.New("ERR wrong number of arguments for 'get' command"), true)
+		return Encode(errors.New("ERR wrong number of arguments for 'get' command"), false)
 	}
 
 	var key string = args[0]
@@ -82,7 +82,7 @@ func evalGET(args []string) []byte {
 	}
 
 	// if key already expired then return nil
-	if obj.ExpiresAt != -1 && obj.ExpiresAt <= time.Now().UnixMilli() {
+	if hasExpired(obj) {
 		return RESP_NIL
 	}
 
@@ -92,7 +92,7 @@ func evalGET(args []string) []byte {
 
 func evalTTL(args []string) []byte {
 	if len(args) != 1 {
-		return Encode(errors.New("ERR wrong number of arguments for 'ttl' command"), true)
+		return Encode(errors.New("ERR wrong number of arguments for 'ttl' command"), false)
 	}
 
 	var key string = args[0]
@@ -105,18 +105,19 @@ func evalTTL(args []string) []byte {
 	}
 
 	// if object exist, but no expiration is set on it then send -1
-	if obj.ExpiresAt == -1 {
+	exp, isExpirySet := getExpiry(obj)
+	if !isExpirySet {
 		return RESP_MINUS_1
+	}
+
+	// if key expired i.e. key does not exist hence return -2
+	if exp < uint64(time.Now().UnixMilli()) {
+		return RESP_MINUS_2
 	}
 
 	// compute the time remaining for the key to expire and
 	// return the RESP encoded form of it
-	durationMs := obj.ExpiresAt - time.Now().UnixMilli()
-
-	// if key expired i.e. key does not exist hence return -2
-	if durationMs < 0 {
-		return RESP_MINUS_2
-	}
+	durationMs := exp - uint64(time.Now().UnixMilli())
 
 	return Encode(int64(durationMs/1000), false)
 }
@@ -135,13 +136,13 @@ func evalDEL(args []string) []byte {
 
 func evalEXPIRE(args []string) []byte {
 	if len(args) <= 1 {
-		return Encode(errors.New("ERR wrong number of arguments for 'expire' command"), true)
+		return Encode(errors.New("ERR wrong number of arguments for 'expire' command"), false)
 	}
 
 	var key string = args[0]
 	exDurationSec, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
-		return Encode(errors.New("ERR value is not an integer or out of range"), true)
+		return Encode(errors.New("ERR value is not an integer or out of range"), false)
 	}
 
 	obj := Get(key)
@@ -151,12 +152,13 @@ func evalEXPIRE(args []string) []byte {
 		return RESP_ZERO
 	}
 
-	obj.ExpiresAt = time.Now().UnixMilli() + exDurationSec*1000
+	setExpiry(obj, exDurationSec*1000)
 
 	// 1 if the timeout was set.
 	return RESP_ONE
 }
 
+// TODO: Make it async by forking a new process
 func evalBGREWRITEAOF(args []string) []byte {
 	DumpAllAOF()
 	return RESP_OK
@@ -207,12 +209,16 @@ func evalLATENCY(args []string) []byte {
 	return Encode([]string{}, false)
 }
 
+func evalLRU(args []string) []byte {
+	evictAllkeysLRU()
+	return RESP_OK
+}
+
 func EvalAndRespond(cmds RedisCmds, c io.ReadWriter) {
 	var response []byte
-
 	buf := bytes.NewBuffer(response)
-	for _, cmd := range cmds {
 
+	for _, cmd := range cmds {
 		switch cmd.Cmd {
 		case "PING":
 			buf.Write(evalPING(cmd.Args))
@@ -236,6 +242,8 @@ func EvalAndRespond(cmds RedisCmds, c io.ReadWriter) {
 			buf.Write(evalCLIENT(cmd.Args))
 		case "LATENCY":
 			buf.Write(evalLATENCY(cmd.Args))
+		case "LRU":
+			buf.Write(evalLRU(cmd.Args))
 		default:
 			buf.Write(evalPING(cmd.Args))
 		}

@@ -16,7 +16,7 @@ var Cfg = Config{
 	Port:             7379,
 	KeysLimit:        100,
 	EvictionRatio:    0.40,
-	EvictionStrategy: "allkeys-random",
+	EvictionStrategy: "allkeys-lru",
 	AOFFile:          "./bin/appendonly.aof",
 }
 
