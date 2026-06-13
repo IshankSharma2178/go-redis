@@ -76,9 +76,18 @@ go-redis/
 
 ## Getting Started
 
+### Docker (recommended)
+
+Pull and run the pre-built image from [Docker Hub](https://hub.docker.com/r/ishanksharma16/go-redis):
+
+```bash
+docker pull ishanksharma16/go-redis:latest
+docker run -p 7379:7379 ishanksharma16/go-redis
+```
+
 ### Prerequisites
 
-- Go **1.26.3** or later
+- Go **1.26.3** or later (if building from source)
 
 ### Install & Run
 

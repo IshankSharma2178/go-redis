@@ -1,0 +1,7 @@
+.git/
+.gitignore
+.gitattributes
+*.md
+Dockerfile
+.dockerignore
+bin/appendonly.aof
