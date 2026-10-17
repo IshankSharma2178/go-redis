@@ -54,7 +54,7 @@ func respondError(err error, c io.ReadWriter) {
 	c.Write([]byte(fmt.Sprintf("-%s\r\n", err))) // adding '-' becoz error need to be transformed into resp before sending
 }
 
-func respond(cmds core.RedisCmds, c io.ReadWriter) {
+func respond(cmds core.RedisCmds, c *core.Client) {
 	core.EvalAndRespond(cmds, c)
 }
 
@@ -90,7 +90,7 @@ func RunSyncTCPServer() {
 				log.Println("err", err)
 			}
 			log.Println("command", cmd)
-			respond(cmd, c)
+			// respond(cmd, c)
 		}
 	}
 }

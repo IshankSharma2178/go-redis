@@ -21,8 +21,15 @@ var lastCronExecTime time.Time = time.Now()
 const EngineStatus_WAITING int32 = 1 << 1
 const EngineStatus_BUSY int32 = 1 << 2
 const EngineStatus_SHUTTING_DOWN int32 = 1 << 3
+const EngineStatus_TRANSACTION int32 = 1 << 4
 
 var eStatus int32 = EngineStatus_WAITING
+
+var connectedClients map[int]*core.Client
+
+func init() {
+	connectedClients = make(map[int]*core.Client)
+}
 
 func WaitForSignal(wg *sync.WaitGroup, sigs chan os.Signal) {
 	defer wg.Done()
@@ -151,9 +158,10 @@ func RunAsyncTCPServer(wg *sync.WaitGroup) error {
 					continue
 				}
 
+				connectedClients[fd] = core.NewClient(fd)
 				// increase the number of concurrent clients count
 				con_clients++
-				syscall.SetNonblock(serverFD, true)
+				syscall.SetNonblock(fd, true)
 
 				// add this new TCP connection to be monitored
 				var socketClientEvent syscall.EpollEvent = syscall.EpollEvent{
@@ -164,10 +172,14 @@ func RunAsyncTCPServer(wg *sync.WaitGroup) error {
 					log.Fatal(err)
 				}
 			} else {
-				comm := core.FDComm{Fd: int(events[i].Fd)}
+				comm := connectedClients[int(events[i].Fd)]
+				if comm == nil {
+					continue
+				}
 				cmds, err := readCommands(comm)
 				if err != nil {
 					syscall.Close(int(events[i].Fd))
+					delete(connectedClients, int(events[i].Fd))
 					con_clients -= 1
 					continue
 				}

@@ -44,11 +44,12 @@ func Put(k string, obj *Obj) {
 
 func Get(k string) *Obj {
 	v := store[k]
-	if v != nil {
-		if hasExpired(v) {
-			Del(k)
-			return nil
-		}
+	if v == nil {
+		return nil
+	}
+	if hasExpired(v) {
+		Del(k)
+		return nil
 	}
 	v.LastAccessedAt = getCurrentClock()
 	return v
